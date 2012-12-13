@@ -5,7 +5,7 @@
  * Description: Allows to add smart links from the Smart Links Meta box
  * Author: Sound Strategies Inc.
  * Author URI: http://soundst.com
- * Version: 0.0.8
+ * Version: 0.0.4
 */
 
 
@@ -13,7 +13,6 @@
 
 global $jal_db_version;
 $jal_db_version = "0.1";
-
 
 function jal_install () {
 	global $wpdb;
@@ -39,8 +38,7 @@ function jal_install () {
 
 register_activation_hook(__FILE__,'jal_install');
 
-global $SmartLinksFound;
-$SmartLinksFound = FALSE;
+
 /* Add shortcode */
 function smart_box_list( $atts ) {
 	global $metabox, $post, $wpdb;
@@ -52,24 +50,19 @@ function smart_box_list( $atts ) {
 	if (count($res) > 0) {
 		$smartlink_postorder = get_post_meta($post->ID, 'Smartlink_postorder', TRUE);
 		if ($smartlink_postorder != '') {
-			$need_id = (($smartlink_postorder -1) % count($res));
+			$need_id = ($smartlink_postorder % count($res) + 1);
 		} else {
-			$need_id = ($post->ID % count($res));
+			$need_id = ($post->ID % count($res) + 1);
 		}
+		//print_r('Count_res ' . count($res) . ' Smartlink postorder '  . $smartlink_postorder . '  Need id: ' . $need_id . '<br>');
+		//$need_id = ($post->ID % count($res) + 1);
 		$need_arr = explode(',', $res[$need_id]->text);
-		if (count($need_arr) == 7) {			
-			$need_link = $need_arr[5] . $need_arr[0] . '<a href="' . $need_arr[2] . '" ' . 'rel="' . $need_arr[4] . '"'; 
-			$need_link .= 'target="_'.$need_arr[3] . '"';
-			$need_link .= '>' . $need_arr[1] . '</a>' . $need_arr[6];
-			global $SmartLinksFound;
-			
+		if (count($need_arr) == 7) {
+			$need_link = $need_arr[5] . $need_arr[0] . '<a href="' . $need_arr[2] . '" ' . 'rel="' . $need_arr[4] . "' " .'target="_' . $need_arr[3] . '">' . $need_arr[1] . '</a>' . $need_arr[6];
 			if ($CTOP['on_pages'] != 'on' && is_page($post->ID)) {
-				$SmartLinksFound = TRUE;
 				return $need_link;
 			}
 			if ($CTOP['on_posts'] != 'on' && is_single($post->ID)) {
-				$SmartLinksFound = TRUE;
-				$type = FALSE;
 				return $need_link;
 			}
 		}
@@ -86,10 +79,6 @@ function smart_box_list( $atts ) {
 
 add_shortcode( 'SmartLink', 'smart_box_list' );
 
-
-
-
-
 /** Add custom field, when post/page publishing or save as draft **/
 if(!function_exists('wp_get_current_user')) {
 	include(ABSPATH . "wp-includes/pluggable.php");
@@ -100,6 +89,13 @@ function add_smartlink_postorder($post) {
 	global $post;
 	$generally_count = calc_static_posts();
 	$smartlink_order = get_post_meta($post->ID, 'Smartlink_postorder', true);
+	//print_r($smartlink_order);
+	/*if ($smartlink_order != '') {
+		
+	} else {
+		add_post_meta($post->ID, 'Smartlink_postorder', $generally_count);
+		update_post_meta($post->ID, 'Smartlink_postorder', $generally_count);
+	}*/
 	if ($smartlink_order == '') {
 		add_post_meta($post->ID, 'Smartlink_postorder', $generally_count);
 		update_post_meta($post->ID, 'Smartlink_postorder', $generally_count);
@@ -151,8 +147,6 @@ function smart_links_submenu_page_callback() {
 		$CTOP_defaults['smart_data'] = '';
 		$CTOP_defaults['on_pages'] = '';
 		$CTOP_defaults['on_rebuild'] = '';
-		$CTOP_defaults['default_post_tag'] = '';
-		$CTOP_defaults['default_page_tag'] = '';
 		$CTOP_defaults['error_text'] = 'Invalid tag specified, please contact administrator.';
 		
 		add_option( "smart_links_submenu_page", $CTOP_defaults );
@@ -164,8 +158,6 @@ function smart_links_submenu_page_callback() {
 		$CTOP['on_posts'] = $_POST['on_posts'];
 		$CTOP['on_pages'] = $_POST['on_pages'];
 		$CTOP['on_rebuild'] = $_POST['on_rebuild'];
-		$CTOP['default_post_tag'] = $_POST['default_post_tag'];
-		$CTOP['default_page_tag'] = $_POST['default_page_tag'];
 		$CTOP['error_text'] = mysql_real_escape_string($_POST['error_text']);
 		
 		update_option('smart_links_submenu_page',$CTOP);
@@ -176,6 +168,7 @@ function smart_links_submenu_page_callback() {
 		$table_name = $wpdb->prefix . "smartlinks";
 		$sql_delete = "DELETE FROM $table_name";
 		$wpdb->query($sql_delete);
+		$j = 0;
 		foreach ($need_lines as $need_line) {
 			if ($need_line != '') {
 				$need_line = explode(",", $need_line);
@@ -183,6 +176,7 @@ function smart_links_submenu_page_callback() {
 				unset($need_line[0]);
 				$second_el = implode(',', $need_line);
 				$wpdb->insert( $table_name, array( 'name' => $first_el, 'text' => $second_el ) );
+				$j++;
 			}
 		}
 	} 
@@ -207,8 +201,7 @@ echo htmlspecialchars('<p>Click here to learn more about: <a href=http://bluewid
 <br><br>
 <b>Please note the following:</b>
 <ul> 
-<li>All values must be specified and comma delimited</li>
-<li>Values must NOT include commas, but can include blanks</li>
+<li>ALL values MUST be specified</li>
 <li>There can be multiple entries for the same tag name</li>
 <li>Multiple entries for the same tag name should be grouped together</li>
 <li>The tag name must NOT contain blanks (use underscore where necessary)</li>
@@ -230,8 +223,7 @@ When multiple entries are present for the same tag name, the following formula i
 Remainder of (Post ID / #Entries for Tag) + 1
 
 	
-		<h3 id="smartlinks_head">Smart links settings</h3>
-		
+		<h3>Smart links settings</h3>
 		<?php 
 			global $wpdb, $metabox;
 			$CTOP = get_option('smart_links_submenu_page');
@@ -245,7 +237,7 @@ Remainder of (Post ID / #Entries for Tag) + 1
 				$single_line[$k] = explode(',', $smart_line->name . ',' . $smart_line->text);
 				if (count($single_line[$k]) != 8) {
 					$invalind_line = $k + 1;
-					echo '<span class="string_error" style="color: red;" >You have error on line <b>' . $invalind_line . '</b><br></span>';
+					echo '<span style="color: red;" >You have error on line</span> <b>' . $invalind_line . '</b><br>';
 				}
 				$end_res .= $smart_line->name . ',' . $smart_line->text . '\n'; 
 				$k++;
@@ -268,21 +260,18 @@ Remainder of (Post ID / #Entries for Tag) + 1
 				<input type="checkbox" id="on_pages" name="on_pages" value="on" <?php if ($CTOP['on_pages'] == 'on') { echo ' checked'; } ?>> 
 				<label for="on_pages">Disable on pages</label> 
 			</p>
+			<?php /*
+			<p>
+				<input type="checkbox" id="on_rebuild" name="on_rebuild" value="on" <?php if ($CTOP['on_rebuild'] == 'on') { echo ' checked'; } ?>> 
+				<label for="on_rebuild">Rebuild</label> 
+			</p> */ ?>
 			<p>
 				<label for="error">Error text for invalid SmartLink tag:</label> 
 				<input type="text" id="error" name="error_text" value="<?php echo $CTOP['error_text']; ?>" class="widefat" /> 
 			</p>
-			<p>
-				<label for="default_post_tag">Default post tag (only used if no SmartLinks are found in the post):</label> 
-				<input type="text" id="default_post_tag" name="default_post_tag" value="<?php echo $CTOP['default_post_tag']; ?>" class="widefat" /> 
-			</p>
-			<p>
-				<label for="default_page_tag">Default page tag (only used if no SmartLinks are found in the page):</label> 
-				<input type="text" id="default_page_tag" name="default_page_tag" value="<?php echo $CTOP['default_page_tag']; ?>" class="widefat" /> 
-			</p>
 			<span class='submit' style='border: 0;'><input  class="button-primary" name='submit' type='submit' value='Save Settings' /></span>
 			
-			<p><input name='submit_postdata' id='submit_postdata' class="button-primary" type='submit' value='Save Settings &amp; Rebuild' /></p>
+			<p><input name='submit_postdata' id='submit_postdata' class="button-primary" type='submit' value='Rebuild' /></p>
 		</form>
 	</div> 
 	
@@ -300,43 +289,12 @@ Remainder of (Post ID / #Entries for Tag) + 1
 			e.preventDefault();
 			if (jQuery('#on_posts').is(":checked")) { var chkd_posts = 'on'; } else { chkd_posts = ''; } 
 			if (jQuery('#on_pages').is(":checked")) { var chkd_pages = 'on'; } else { chkd_pages = ''; }
-			var error_text = jQuery('#error').val();
-			var	smart_data = jQuery('#smart_data').val();
-			var	default_post_tag = jQuery('#default_post_tag').val();
-			var	default_page_tag = jQuery('#default_page_tag').val();
-			var	arrayOfLines = jQuery('#smart_data').val().split('\n');
-			jQuery(".errors_data").remove();
-
-			var i = 0;
-			var count_er = [];
 			
-			for ( keyVar in arrayOfLines ) {
-				var arr = arrayOfLines[keyVar];
-				if (arr != '') {
-					arr = arr.split(',');
-					if (arr.length != 8) {
-						count_er[i] = keyVar;
-						i++;
-					}
-				}
-			}
-			
-			jQuery("#smartlinks_head").after('<p class="errors_data"></p>');
-			jQuery('.string_error').remove();
-			for (keyErr in count_er) {
-				var num = parseInt(count_er[keyErr]) + 1;
-				jQuery(".errors_data").append('<span style="color: red;" >You have error on line <b> ' + num + ' </b>.<br></span>');
-			}
-
 			jQuery('#add_loading').show();
 			data = { 
 				action: 'add_get_results',
 				on_posts: chkd_posts,
 				on_pages: chkd_pages,
-				error_text: error_text,
-				smart_data: smart_data,
-				default_post_tag: default_post_tag,
-				default_page_tag: default_page_tag 
 			};
 			jQuery.post(ajaxurl, data, function(response) {
 				jQuery('#post_order_control').empty();
@@ -349,7 +307,11 @@ Remainder of (Post ID / #Entries for Tag) + 1
 		
 	});
 	</script>
+	
+	
+	
 <?php
+
 }
 
 
@@ -364,35 +326,9 @@ function add_process() {
 		(isset($_GET['on_pages']) && !empty($_GET['on_pages'])))
 		$on_pages = true;
 
-	if ((isset($_POST['error_text']) && !empty($_POST['error_text']))) { $error_text = $_POST['error_text']; }
-	if ((isset($_POST['default_post_tag']) && !empty($_POST['default_post_tag']))) { $default_post_tag = $_POST['default_post_tag']; }
-	if ((isset($_POST['default_page_tag']) && !empty($_POST['default_page_tag']))) { $default_page_tag = $_POST['default_page_tag']; }
-	
-	if ((isset($_POST['smart_data']) && !empty($_POST['smart_data']))) { $smart_data = $_POST['smart_data']; }
-	
-	$need_lines = explode("\n", $smart_data);
-	
-	global $wpdb;
-	$table_name = $wpdb->prefix . "smartlinks";
-	$sql_delete = "DELETE FROM $table_name";
-	$wpdb->query($sql_delete);
-	foreach ($need_lines as $need_line) {
-		if ($need_line != '') {
-			$need_line = explode(",", $need_line);
-			$first_el = $need_line[0];
-			unset($need_line[0]);
-			$second_el = implode(',', $need_line);
-			$wpdb->insert( $table_name, array( 'name' => $first_el, 'text' => $second_el ) );
-		}
-	}
-	
 	$opt = get_option('smart_links_submenu_page');
 	if ($on_posts == true) { $opt['on_posts'] = 'on'; } else { $opt['on_posts'] = ''; }
 	if ($on_pages == true) { $opt['on_pages'] = 'on'; } else { $opt['on_pages'] = '';}
-	$opt['error_text'] = mysql_real_escape_string($error_text);
-	$opt['default_post_tag'] = mysql_real_escape_string($default_post_tag);
-	$opt['default_page_tag'] = mysql_real_escape_string($default_page_tag);
-	
 	update_option('smart_links_submenu_page',$opt);
 	
 	$CTOP = get_option('smart_links_submenu_page');	
@@ -462,73 +398,4 @@ function add_process() {
 }
 add_action('wp_ajax_add_get_results', 'add_process');
 
-/*
-function link_process($link) {
-	$need_arr = explode(',', $link);
-	if (count($need_arr) != 7 ) {
-		return 'You have some error in default link. Please fix that.';
-	} else {
-		$need_arr[2] = trim(str_replace('http://', '', $need_arr[2]));
-		
-		$need_link = $need_arr[5] . $need_arr[0] . '<a href="http://' . $need_arr[2] . '" ' . 'rel="' . $need_arr[4] . '"';
-		$need_link .= 'target="_'.$need_arr[3] . '"';
-		$need_link .= '>' . $need_arr[1] . '</a>' . $need_arr[6];
-		return $need_link;
-	}
-}
-*/
 
-
-function add_default_link($content) {
-	global $SmartLinksFound, $post, $wpdb;
-	$CTOP = get_option('smart_links_submenu_page');
-	
-	if (is_page($post->ID)) {
-		$first_item  = mysql_real_escape_string($CTOP['default_page_tag']);
-	}
-	if (is_single($post->ID)) {
-		$first_item  = mysql_real_escape_string($CTOP['default_page_tag']);
-	}
-	
-	$table_name = $wpdb->prefix . "smartlinks";
-	$query = "SELECT id, name, text FROM $table_name USE INDEX(tag_name) WHERE name = '$first_item'";
-	
-	$res = $wpdb->get_results($query);
-	//print_r($res);
-	if (count($res) > 0) {
-		$smartlink_postorder = get_post_meta($post->ID, 'Smartlink_postorder', TRUE);
-		if ($smartlink_postorder != '') {
-			$need_id = (($smartlink_postorder -1) % count($res));
-		} else {
-			$need_id = ($post->ID % count($res));
-		}
-		$need_arr = explode(',', $res[$need_id]->text);
-		if (count($need_arr) == 7) {
-			$need_link = $need_arr[5] . $need_arr[0] . '<a href="' . $need_arr[2] . '" ' . 'rel="' . $need_arr[4] . '"';
-			$need_link .= 'target="_'.$need_arr[3] . '"';
-			$need_link .= '>' . $need_arr[1] . '</a>' . $need_arr[6];
-		} else {
-			$need_link = "You need create correct line.";
-		}
-	}
-		
-	if ($SmartLinksFound == FALSE) { 
-		if ($CTOP['on_posts'] != 'on') {
-			if (is_single($post->ID)) {
-				return $content . $need_link;
-			}
-		} else {
-			return $content;
-		}
-		if ($CTOP['on_pages'] != 'on') {
-			if (is_page($post->ID)) {
-				return $content . $need_link;
-			}
-		} else {
-			return $content;
-		}
-	} else {
-		return $content;
-	}
-}
-add_filter('the_content', 'add_default_link', 999999);
